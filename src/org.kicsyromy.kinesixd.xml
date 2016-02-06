@@ -1,0 +1,16 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+    <interface name="org.kicsyromy.kinesixd">
+        <signal name="Swiped">
+            <arg name="direction" type="i" direction="out"/>
+            <arg name="finger_count" type="i" direction="out"/>
+        </signal>
+        <method name="GetValidDeviceList">
+            <arg type="a(issuu)" direction="out"/>
+        </method>
+        <method name="SetActiveDevice">
+            <annotation name="org.freedesktop.DBus.Method.NoReply" value="true"/>
+            <arg name="device" type="(issuu)" direction="in"/>
+        </method>
+    </interface>
+</node>
