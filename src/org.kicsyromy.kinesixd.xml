@@ -5,6 +5,10 @@
             <arg name="direction" type="i" direction="out"/>
             <arg name="finger_count" type="i" direction="out"/>
         </signal>
+        <signal name="Pinch">
+            <arg name="pinch_type" type="i" direction="out"/>
+            <arg name="finger_count" type="i" direction="out"/>
+        </signal>
         <method name="GetValidDeviceList">
             <arg type="a(issuu)" direction="out"/>
         </method>

@@ -29,7 +29,8 @@
 #include "kinesixd_device_p.h"
 
 #ifdef DEBUG_BUILD
-static const char *directions[] = { "Up", "Down", "Left", "Right", "Unknown" };
+static const char *swipe_directions[] = { "Up", "Down", "Left", "Right" };
+static const char *pinch_types[]      = { "In", "Out" };
 #endif
 
 static const char GESTURE_DAEMON_DBUS_NAME[]        = "org.kicsyromy.kinesixd";
@@ -63,6 +64,10 @@ static const char GESTURE_DAEMON_DBUS_INTROSPECTION_DATA_KINESIXD[] = ""
     "<interface name=\"org.kicsyromy.kinesixd\">"
         "<signal name=\"Swiped\">"
             "<arg name=\"direction\" type=\"i\" direction=\"out\"/>"
+            "<arg name=\"finger_count\" type=\"i\" direction=\"out\"/>"
+        "</signal>"
+        "<signal name=\"Pinch\">"
+            "<arg name=\"pinch_type\" type=\"i\" direction=\"out\"/>"
             "<arg name=\"finger_count\" type=\"i\" direction=\"out\"/>"
         "</signal>"
         "<method name=\"GetValidDeviceList\">"
@@ -189,7 +194,7 @@ static void kinesixd_dbus_adaptor_priv_swiped(int direction, int finger_count, v
     dbus_uint32_t reply_id = 0;
     DBusMessage *message = 0;
 
-    LOG_DEBUG("Swiped with %d fingers in direction %s", finger_count, directions[direction]);
+    LOG_DEBUG("Swiped with %d fingers in direction %s", finger_count, swipe_directions[direction]);
 
     message = dbus_message_new_signal(GESTURE_DAEMON_OBJECT_PATH,
                                       GESTURE_DAEMON_INTERFACE_NAME,
@@ -230,7 +235,47 @@ static void kinesixd_dbus_adaptor_priv_swiped(int direction, int finger_count, v
 
 static void kinesixd_dbus_adaptor_priv_pinch(int pinch_type, int finger_count, void *kinesixd_dbus_adaptor)
 {
-    LOG_DEBUG("called");
+    KinesixdDBusAdaptor self = (KinesixdDBusAdaptor)kinesixd_dbus_adaptor;
+    dbus_uint32_t reply_id = 0;
+    DBusMessage *message = 0;
+
+    LOG_DEBUG("Pinch %s with %d fingers", pinch_types[pinch_type], finger_count);
+
+    message = dbus_message_new_signal(GESTURE_DAEMON_OBJECT_PATH,
+                                      GESTURE_DAEMON_INTERFACE_NAME,
+                                      "Pinch");
+    if (!message)
+    {
+        LOG_ERROR("Could not create DBus message. Unable to send signal %s.Pinch(%d, %d)",
+                  GESTURE_DAEMON_INTERFACE_NAME,
+                  pinch_type,
+                  finger_count);
+
+        return;
+    }
+
+    if (!dbus_message_append_args(message,
+                                  DBUS_TYPE_INT32, &pinch_type,
+                                  DBUS_TYPE_INT32, &finger_count,
+                                  DBUS_TYPE_INVALID))
+    {
+        LOG_ERROR("Could not append agruments to signal. Probably out of memory.");
+        return;
+    }
+
+    pthread_mutex_lock(&self->d_bus.message_listener.signal_mutex);
+    if (!dbus_connection_send(self->d_bus.connection, message, &reply_id))
+    {
+        LOG_ERROR("Failed to send DBus signal %s.Pinch(%d, %d). Probably out of memory.",
+                  GESTURE_DAEMON_INTERFACE_NAME,
+                  pinch_type,
+                  finger_count);
+    }
+    else
+        dbus_connection_flush(self->d_bus.connection);
+    pthread_mutex_unlock(&self->d_bus.message_listener.signal_mutex);
+
+    dbus_message_unref(message);
 }
 
 static void kinesixd_dbus_adaptor_get_valid_device_list(KinesixdDBusAdaptor self,
