@@ -86,9 +86,34 @@ typedef enum
     GestureUnknown
 } GestureType;
 
+static void kinesixd_daemon_priv_sanitize_device_name(const char *device_name,
+                                                      char *buffer,
+                                                      size_t buffer_size);
+static void kinesixd_daemon_priv_add_device(const KinesixDaemon self,
+                                            const char *device_name,
+                                            KinesixdDevice **device_list_out,
+                                            int *current_index_out);
+static KinesixdDevice *kinesixd_daemon_priv_device_list_duplicate(
+                                            const KinesixdDevice *device_list,
+                                            int size);
+static int kinesixd_daemon_priv_handle_swipe_update(KinesixDaemon self,
+                                struct libinput_event_gesture *gesture_event);
+static int kinesixd_daemon_priv_handle_pinch_update(KinesixDaemon self,
+                                struct libinput_event_gesture *gesture_event);
+static GestureEventState kinesixd_daemon_priv_handle_swipe(KinesixDaemon self,
+                                                   struct libinput_event *event,
+                                                   int *swipe_finger_count_out);
+static GestureEventState kinesixd_daemon_priv_handle_pinch(KinesixDaemon self,
+                                                   struct libinput_event *event,
+                                                   int *pinch_finger_count_out);
+static void kinesixd_daemon_priv_handle_gesture(KinesixDaemon self,
+                                                struct libinput_event *event);
 static void *kinesixd_daemon_priv_poll_events(void *kinesixd_daemon);
-static int libinput_open_restricted(const char *path, int flags, void *user_data);
-static void libinput_close_restricted(int fd, void *user_data);
+static int kinesixd_daemon_priv_libinput_open_restricted(const char *path,
+                                                         int flags,
+                                                         void *user_data);
+static void kinesixd_daemon_priv_libinput_close_restricted(int fd,
+                                                           void *user_data);
 
 KinesixDaemon kinesixd_daemon_new(const struct KinesixDaemonCallbacks callbacks, void *user_data)
 {
@@ -100,8 +125,8 @@ KinesixDaemon kinesixd_daemon_new(const struct KinesixDaemonCallbacks callbacks,
 
     self->gesture_type = UNKNOWN_GESTURE;
 
-    self->libinput.interface.open_restricted = &libinput_open_restricted;
-    self->libinput.interface.close_restricted = &libinput_close_restricted;
+    self->libinput.interface.open_restricted = &kinesixd_daemon_priv_libinput_open_restricted;
+    self->libinput.interface.close_restricted = &kinesixd_daemon_priv_libinput_close_restricted;
     self->libinput.instance = libinput_path_create_context(&self->libinput.interface, 0);
     self->libinput.swipe_x_max = 0;
     self->libinput.swipe_y_max = 0;
@@ -132,6 +157,45 @@ void kinesixd_daemon_free(KinesixDaemon self)
     free(self);
 }
 
+KinesixdDevice *kinesixd_daemon_get_valid_device_list(const KinesixDaemon self)
+{
+    KinesixdDevice *device_list_heap = self->valid_device_list;
+
+    if (!self->valid_device_list)
+    {
+        int device_count = 0;
+        KinesixdDevice device_list[255];
+        KinesixdDevice *device_list_ptr = &device_list[0];
+        struct dirent *file = 0;
+        DIR *dir = 0;
+
+        if ((dir = opendir(DEVICES_PATH)) != 0)
+        {
+            for (;;)
+            {
+                file = readdir(dir);
+
+                /* Check to see if there are files left to check */
+                if (file == 0)
+                    break;
+
+                /* Check to see if file is a characted device */
+                if (file->d_type == DT_CHR)
+                    kinesixd_daemon_priv_add_device(self,
+                                                    file->d_name,
+                                                    &device_list_ptr,
+                                                    &device_count);
+            }
+        }
+        free(dir);
+
+        device_list_heap = kinesixd_daemon_priv_device_list_duplicate(
+                    device_list, device_count);
+    }
+
+    return device_list_heap;
+}
+
 void kinesixd_daemon_set_active_device(KinesixDaemon self, KinesixdDevice device)
 {
     if (!kinesixd_device_equals(self->active_device, device))
@@ -142,11 +206,14 @@ void kinesixd_daemon_set_active_device(KinesixDaemon self, KinesixdDevice device
                 libinput_path_remove_device(self->libinput.active_device);
 
             self->active_device = device;
-            self->libinput.active_device = libinput_path_add_device(self->libinput.instance, kinesixd_device_get_path(device));
+            self->libinput.active_device = libinput_path_add_device(
+                        self->libinput.instance,
+                        kinesixd_device_get_path(device));
         }
         else
         {
-            LOG_ERROR("Device %s is not a valid device", kinesixd_device_get_path(device));
+            LOG_ERROR("Device %s is not a valid device",
+                      kinesixd_device_get_path(device));
         }
     }
     else
@@ -173,7 +240,9 @@ void kinesixd_daemon_stop_polling(KinesixDaemon self)
     pthread_join(self->event_poller_thread.thread_id, 0);
 }
 
-static void kinesixd_daemon_priv_sanitize_device_name(const char *device_name, char *buffer, size_t buffer_size)
+static void kinesixd_daemon_priv_sanitize_device_name(const char *device_name,
+                                                      char *buffer,
+                                                      size_t buffer_size)
 {
     int stop = 0;
     size_t device_name_it = 0;
@@ -250,7 +319,9 @@ static void kinesixd_daemon_priv_add_device(const KinesixDaemon self,
     }
 }
 
-static KinesixdDevice *kinesixd_daemon_priv_device_list_duplicate(const KinesixdDevice *device_list, int size)
+static KinesixdDevice *kinesixd_daemon_priv_device_list_duplicate(
+                                            const KinesixdDevice *device_list,
+                                            int size)
 {
     KinesixdDevice *result;
     int i;
@@ -267,42 +338,9 @@ static KinesixdDevice *kinesixd_daemon_priv_device_list_duplicate(const Kinesixd
     return result;
 }
 
-KinesixdDevice *kinesixd_daemon_get_valid_device_list(const KinesixDaemon self)
-{
-    KinesixdDevice *device_list_heap = self->valid_device_list;
-
-    if (!self->valid_device_list)
-    {
-        int device_count = 0;
-        KinesixdDevice device_list[255];
-        KinesixdDevice *device_list_ptr = &device_list[0];
-        struct dirent *file = 0;
-        DIR *dir = 0;
-
-        if ((dir = opendir(DEVICES_PATH)) != 0)
-        {
-            for (;;)
-            {
-                file = readdir(dir);
-
-                /* Check to see if there are files left to check */
-                if (file == 0)
-                    break;
-
-                /* Check to see if file is a characted device */
-                if (file->d_type == DT_CHR)
-                    kinesixd_daemon_priv_add_device(self, file->d_name, &device_list_ptr, &device_count);
-            }
-        }
-        free(dir);
-
-        device_list_heap = kinesixd_daemon_priv_device_list_duplicate(device_list, device_count);
-    }
-
-    return device_list_heap;
-}
-
-static int libinput_open_restricted(const char *path, int flags, void *user_data)
+static int kinesixd_daemon_priv_libinput_open_restricted(const char *path,
+                                                         int flags,
+                                                         void *user_data)
 {
     int fd = -1;
 
@@ -316,7 +354,8 @@ static int libinput_open_restricted(const char *path, int flags, void *user_data
     return fd;
 }
 
-static void libinput_close_restricted(int fd, void *user_data)
+static void kinesixd_daemon_priv_libinput_close_restricted(int fd,
+                                                           void *user_data)
 {
     UNUSED(user_data)
 
@@ -324,7 +363,7 @@ static void libinput_close_restricted(int fd, void *user_data)
 }
 
 static int kinesixd_daemon_priv_handle_swipe_update(KinesixDaemon self,
-                                                    struct libinput_event_gesture *gesture_event)
+                                struct libinput_event_gesture *gesture_event)
 {
     double x_max = self->libinput.swipe_x_max;
     double y_max = self->libinput.swipe_y_max;
@@ -371,7 +410,7 @@ static int kinesixd_daemon_priv_handle_swipe_update(KinesixDaemon self,
 }
 
 static int kinesixd_daemon_priv_handle_pinch_update(KinesixDaemon self,
-                                                    struct libinput_event_gesture *gesture_event)
+                                struct libinput_event_gesture *gesture_event)
 {
     UNUSED(self)
 
@@ -392,8 +431,8 @@ static int kinesixd_daemon_priv_handle_pinch_update(KinesixDaemon self,
 }
 
 static GestureEventState kinesixd_daemon_priv_handle_swipe(KinesixDaemon self,
-                                                 struct libinput_event *event,
-                                                 int *swipe_finger_count_out)
+                                                   struct libinput_event *event,
+                                                   int *swipe_finger_count_out)
 {
     struct libinput_event_gesture *gesture_event = 0;
     enum libinput_event_type gesture_event_type;
@@ -474,7 +513,7 @@ static GestureEventState kinesixd_daemon_priv_handle_pinch(KinesixDaemon self,
 }
 
 static void kinesixd_daemon_priv_handle_gesture(KinesixDaemon self,
-                                                   struct libinput_event *event)
+                                                struct libinput_event *event)
 {
     int finger_count = 0;
     GestureType gesture_type = GestureUnknown;

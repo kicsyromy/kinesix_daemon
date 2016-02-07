@@ -417,7 +417,6 @@ static void *kinesixd_dbus_adaptor_priv_listen_for_messages(void *kinesixd_dbus_
     KinesixdDBusAdaptor self = (KinesixdDBusAdaptor)kinesixd_dbus_adaptor;
     int stop_issued = 0;
     DBusMessage *message = 0;
-    kinesixd_daemon_set_active_device(self->kinesixd_daemon, kinesixd_daemon_get_valid_device_list(self->kinesixd_daemon)[0]);
 
     for (;;)
     {

@@ -45,9 +45,9 @@ struct KinesixDaemonCallbacks
 
 KinesixDaemon kinesixd_daemon_new(const struct KinesixDaemonCallbacks callbacks, void *user_data);
 void kinesixd_daemon_free(KinesixDaemon daemon);
+KinesixdDevice *kinesixd_daemon_get_valid_device_list(const KinesixDaemon Daemon);
 void kinesixd_daemon_set_active_device(KinesixDaemon daemon, KinesixdDevice device);
 void kinesixd_daemon_start_polling(KinesixDaemon daemon);
 void kinesixd_daemon_stop_polling(KinesixDaemon daemon);
-KinesixdDevice *kinesixd_daemon_get_valid_device_list(const KinesixDaemon Daemon);
 
 #endif // GESTURE_DAEMON_H
