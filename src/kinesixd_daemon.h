@@ -22,17 +22,28 @@
 
 #include <kinesixd_device.h>
 
-#define SWIPE_UP        0
-#define SWIPE_DOWN      1
-#define SWIPE_LEFT      2
-#define SWIPE_RIGHT     3
-#define SWIPE_UNKOWN    4
+#define SWIPE_UP         0
+#define SWIPE_DOWN       1
+#define SWIPE_LEFT       2
+#define SWIPE_RIGHT      3
+
+#define PINCH_IN         0
+#define PINCH_OUT        1
+
+#define UNKNOWN_GESTURE -1
 
 typedef struct _KinesixDaemon * KinesixDaemon;
 
 typedef void (*SwipedCallback)(int direction, int finger_count, void *user_data);
+typedef void (*PinchCallback)(int pinch_type, int finger_count, void *user_data);
 
-KinesixDaemon kinesixd_daemon_new(SwipedCallback cb, void *user_data);
+struct KinesixDaemonCallbacks
+{
+    SwipedCallback swiped_cb;
+    PinchCallback  pinch_cb;
+};
+
+KinesixDaemon kinesixd_daemon_new(const struct KinesixDaemonCallbacks callbacks, void *user_data);
 void kinesixd_daemon_free(KinesixDaemon daemon);
 void kinesixd_daemon_set_active_device(KinesixDaemon daemon, KinesixdDevice device);
 void kinesixd_daemon_start_polling(KinesixDaemon daemon);

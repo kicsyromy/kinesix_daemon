@@ -26,6 +26,7 @@
 
 #include "kinesixd_daemon.h"
 #include "kinesixd_device_marshaler.h"
+#include "kinesixd_device_p.h"
 
 #ifdef DEBUG_BUILD
 static const char *directions[] = { "Up", "Down", "Left", "Right", "Unknown" };
@@ -97,6 +98,7 @@ struct _KinesixdDBusAdaptor
 };
 
 static void kinesixd_dbus_adaptor_priv_swiped(int direction, int finger_count, void *kinesixd_dbus_adaptor);
+static void kinesixd_dbus_adaptor_priv_pinch(int pinch_type, int finger_count, void *kinesixd_dbus_adaptor);
 static void kinesixd_dbus_adaptor_get_valid_device_list(KinesixdDBusAdaptor kinesixd_dbus_adaptor,
                                                               DBusMessage *message);
 static void kinesixd_dbus_adaptor_set_active_device(KinesixdDBusAdaptor kinesixd_dbus_adaptor,
@@ -110,8 +112,13 @@ static void *kinesixd_dbus_adaptor_priv_listen_for_messages(void *kinesixd_dbus_
 KinesixdDBusAdaptor kinesixd_dbus_adaptor_new(DBusBusType type)
 {
     KinesixdDBusAdaptor self = (KinesixdDBusAdaptor)malloc(sizeof(struct _KinesixdDBusAdaptor));
+    struct KinesixDaemonCallbacks callbacks =
+    {
+        .swiped_cb = &kinesixd_dbus_adaptor_priv_swiped,
+        .pinch_cb  = &kinesixd_dbus_adaptor_priv_pinch
+    };
 
-    self->kinesixd_daemon = kinesixd_daemon_new(&kinesixd_dbus_adaptor_priv_swiped, self);
+    self->kinesixd_daemon = kinesixd_daemon_new(callbacks, self);
 
     dbus_error_init(&self->d_bus.error);
     self->d_bus.connection = dbus_bus_get(type, &self->d_bus.error);
@@ -219,6 +226,11 @@ static void kinesixd_dbus_adaptor_priv_swiped(int direction, int finger_count, v
     pthread_mutex_unlock(&self->d_bus.message_listener.signal_mutex);
 
     dbus_message_unref(message);
+}
+
+static void kinesixd_dbus_adaptor_priv_pinch(int pinch_type, int finger_count, void *kinesixd_dbus_adaptor)
+{
+    LOG_DEBUG("called");
 }
 
 static void kinesixd_dbus_adaptor_get_valid_device_list(KinesixdDBusAdaptor self,
@@ -360,6 +372,7 @@ static void *kinesixd_dbus_adaptor_priv_listen_for_messages(void *kinesixd_dbus_
     KinesixdDBusAdaptor self = (KinesixdDBusAdaptor)kinesixd_dbus_adaptor;
     int stop_issued = 0;
     DBusMessage *message = 0;
+    kinesixd_daemon_set_active_device(self->kinesixd_daemon, kinesixd_daemon_get_valid_device_list(self->kinesixd_daemon)[0]);
 
     for (;;)
     {

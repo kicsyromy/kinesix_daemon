@@ -63,8 +63,10 @@ struct _KinesixDaemon
 {
     KinesixdDevice active_device;
     KinesixdDevice *valid_device_list;
-    SwipedCallback swiped_cb;
+    struct KinesixDaemonCallbacks callbacks;
     void *user_data;
+
+    int gesture_type;
     struct _LibInput libinput;
     struct _EventPollerThread event_poller_thread;
 };
@@ -77,17 +79,26 @@ typedef enum
     GestureStateUnknown
 } GestureEventState;
 
+typedef enum
+{
+    GestureSwipe,
+    GesturePinch,
+    GestureUnknown
+} GestureType;
+
 static void *kinesixd_daemon_priv_poll_events(void *kinesixd_daemon);
 static int libinput_open_restricted(const char *path, int flags, void *user_data);
 static void libinput_close_restricted(int fd, void *user_data);
 
-KinesixDaemon kinesixd_daemon_new(SwipedCallback cb, void *user_data)
+KinesixDaemon kinesixd_daemon_new(const struct KinesixDaemonCallbacks callbacks, void *user_data)
 {
     KinesixDaemon self = (KinesixDaemon)malloc(sizeof(struct _KinesixDaemon));
     self->active_device = 0;
     self->valid_device_list = 0;
-    self->swiped_cb = cb;
+    self->callbacks = callbacks;
     self->user_data = user_data;
+
+    self->gesture_type = UNKNOWN_GESTURE;
 
     self->libinput.interface.open_restricted = &libinput_open_restricted;
     self->libinput.interface.close_restricted = &libinput_close_restricted;
@@ -312,14 +323,14 @@ static void libinput_close_restricted(int fd, void *user_data)
     close(fd);
 }
 
-static int kinesixd_daemon_priv_handle_geture_update(KinesixDaemon self,
+static int kinesixd_daemon_priv_handle_swipe_update(KinesixDaemon self,
                                                     struct libinput_event_gesture *gesture_event)
 {
     double x_max = self->libinput.swipe_x_max;
     double y_max = self->libinput.swipe_y_max;
     double x_current = 0;
     double y_current = 0;
-    int swipe_direction = SWIPE_UNKOWN;
+    int swipe_direction = UNKNOWN_GESTURE;
 
     if (!gesture_event)
         return swipe_direction;
@@ -359,12 +370,31 @@ static int kinesixd_daemon_priv_handle_geture_update(KinesixDaemon self,
     return swipe_direction;
 }
 
-static GestureEventState kinesixd_daemon_priv_handle_event(KinesixDaemon self,
-                                             struct libinput_event *event,
-                                             int *swipe_direction_out,
-                                             int *swipe_finger_count_out)
+static int kinesixd_daemon_priv_handle_pinch_update(KinesixDaemon self,
+                                                    struct libinput_event_gesture *gesture_event)
 {
-    static int swipe_direction = SWIPE_UNKOWN;
+    UNUSED(self)
+
+    double scale = 1;
+    int pinch_type = UNKNOWN_GESTURE;
+
+    if (!gesture_event)
+        return pinch_type;
+
+    scale = libinput_event_gesture_get_scale(gesture_event);
+
+    if (scale > 1)
+        pinch_type = PINCH_OUT;
+    else if (scale < 1)
+        pinch_type = PINCH_IN;
+
+    return pinch_type;
+}
+
+static GestureEventState kinesixd_daemon_priv_handle_swipe(KinesixDaemon self,
+                                                 struct libinput_event *event,
+                                                 int *swipe_finger_count_out)
+{
     struct libinput_event_gesture *gesture_event = 0;
     enum libinput_event_type gesture_event_type;
     int swipe_finger_count = 0;
@@ -385,7 +415,7 @@ static GestureEventState kinesixd_daemon_priv_handle_event(KinesixDaemon self,
     {
         gesture_event = libinput_event_get_gesture_event(event);
         swipe_finger_count = libinput_event_gesture_get_finger_count(gesture_event);
-        swipe_direction = kinesixd_daemon_priv_handle_geture_update(self, gesture_event);
+        self->gesture_type = kinesixd_daemon_priv_handle_swipe_update(self, gesture_event);
         state = GestureOngoing;
     }
     else if (gesture_event_type == LIBINPUT_EVENT_GESTURE_SWIPE_END)
@@ -397,21 +427,92 @@ static GestureEventState kinesixd_daemon_priv_handle_event(KinesixDaemon self,
         self->libinput.swipe_y_max = 0;
     }
 
-    libinput_event_destroy(event);
-
-    *swipe_direction_out = swipe_direction;
     *swipe_finger_count_out = swipe_finger_count;
 
     return state;
 }
 
+static GestureEventState kinesixd_daemon_priv_handle_pinch(KinesixDaemon self,
+                                                   struct libinput_event *event,
+                                                   int *pinch_finger_count_out)
+{
+    struct libinput_event_gesture *gesture_event = 0;
+    enum libinput_event_type gesture_event_type;
+    int pinch_finger_count = 0;
+    GestureEventState state = GestureStateUnknown;
+
+    if (!event)
+        return state;
+
+    gesture_event_type = libinput_event_get_type(event);
+
+    if (gesture_event_type == LIBINPUT_EVENT_GESTURE_PINCH_BEGIN)
+    {
+        gesture_event = libinput_event_get_gesture_event(event);
+        pinch_finger_count = libinput_event_gesture_get_finger_count(gesture_event);
+        state = GestureStarted;
+    }
+    else if (gesture_event_type == LIBINPUT_EVENT_GESTURE_PINCH_UPDATE)
+    {
+        gesture_event = libinput_event_get_gesture_event(event);
+        pinch_finger_count = libinput_event_gesture_get_finger_count(gesture_event);
+        self->gesture_type = kinesixd_daemon_priv_handle_pinch_update(self, gesture_event);
+        state = GestureOngoing;
+    }
+    else if (gesture_event_type == LIBINPUT_EVENT_GESTURE_PINCH_END)
+    {
+        gesture_event = libinput_event_get_gesture_event(event);
+        pinch_finger_count = libinput_event_gesture_get_finger_count(gesture_event);
+        state = GestureFinished;
+        self->libinput.swipe_x_max = 0;
+        self->libinput.swipe_y_max = 0;
+    }
+
+    *pinch_finger_count_out = pinch_finger_count;
+
+    return state;
+}
+
+static void kinesixd_daemon_priv_handle_gesture(KinesixDaemon self,
+                                                   struct libinput_event *event)
+{
+    int finger_count = 0;
+    GestureType gesture_type = GestureUnknown;
+    GestureEventState gesture_state = GestureStateUnknown;
+
+    gesture_state = kinesixd_daemon_priv_handle_swipe(self,
+                                                      event,
+                                                      &finger_count);
+    if (gesture_state != GestureStateUnknown)
+    {
+        gesture_type = GestureSwipe;
+    }
+    else
+    {
+        gesture_state = kinesixd_daemon_priv_handle_pinch(self,
+                                                          event,
+                                                          &finger_count);
+        if (gesture_state != GestureStateUnknown)
+                gesture_type = GesturePinch;
+    }
+
+    if ((gesture_state == GestureFinished) &&
+        (libinput_event_gesture_get_cancelled(
+             libinput_event_get_gesture_event(event)) == 0))
+    {
+        if ((gesture_type == GestureSwipe) && (self->callbacks.swiped_cb != 0))
+            self->callbacks.swiped_cb(self->gesture_type, finger_count, self->user_data);
+        if ((gesture_type == GesturePinch) && (self->callbacks.pinch_cb!= 0))
+            self->callbacks.pinch_cb(self->gesture_type, finger_count, self->user_data);
+    }
+
+    libinput_event_destroy(event);
+}
+
 static void *kinesixd_daemon_priv_poll_events(void *kinesixd_daemon)
 {
     KinesixDaemon self = (KinesixDaemon)kinesixd_daemon;
-    int swipe_direction = SWIPE_UNKOWN;
-    int swipe_finger_count = 0;
     int stop_issued = 0;
-    GestureEventState gesture_state = GestureStateUnknown;
 
     struct pollfd poller = {
         .fd = libinput_get_fd(self->libinput.instance),
@@ -437,12 +538,8 @@ static void *kinesixd_daemon_priv_poll_events(void *kinesixd_daemon)
             libinput_dispatch(self->libinput.instance);
 
             /* Get the actual event from the queue and send it for processing*/
-            gesture_state = kinesixd_daemon_priv_handle_event(self,
-                                             libinput_get_event(self->libinput.instance),
-                                             &swipe_direction,
-                                             &swipe_finger_count);
-            if ((gesture_state == GestureFinished) && (self->swiped_cb != 0))
-                self->swiped_cb(swipe_direction, swipe_finger_count, self->user_data);
+            kinesixd_daemon_priv_handle_gesture(self,
+                                 libinput_get_event(self->libinput.instance));
         }
     }
 
