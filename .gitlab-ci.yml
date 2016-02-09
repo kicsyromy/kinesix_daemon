@@ -1,5 +1,5 @@
 before_script:
-    - pacman -Syy --noconfirm; pacman -Syu --noconfirm; rm -rf /var/cache/pacman/pkg/*.tar.xz
+    - pacman -Syy --noconfirm; pacman -Syu --noconfirm; pacman-db-upgrade; rm -rf /var/cache/pacman/pkg/*.tar.xz
 
 build:
     script:
