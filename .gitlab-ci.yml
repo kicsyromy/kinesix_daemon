@@ -1,0 +1,8 @@
+before_script:
+    - pacman -Syy --noconfirm; pacman -Syu --noconfirm
+
+build:
+    script:
+        - ./autogen.sh
+        - ./configure
+        - make
