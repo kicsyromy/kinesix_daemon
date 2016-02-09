@@ -3,6 +3,7 @@ before_script:
 
 build:
     script:
+        - cd src/
         - ./autogen.sh
         - ./configure
         - make
