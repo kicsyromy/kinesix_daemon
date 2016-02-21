@@ -56,7 +56,8 @@ Makefile
 Makefile.in
 requests
 traces.*
-kinesixd
+.deps/
+.dirstamp
 
 output/
 
