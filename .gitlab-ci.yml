@@ -5,5 +5,11 @@ build:
     script:
         - cd src/
         - ./autogen.sh
-        - ./configure
         - make
+test:
+    script:
+        - cd test/
+        - ./autogen.sh
+        - make
+        - ./test_kinesixd
+
