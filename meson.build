@@ -1,24 +1,33 @@
- # project name and programming language
-    project('com.github.yourusername.yourrepositoryname', 'vala', 'c')
+project (
+    'com.github.kicsyromy.kinesix', 'vala', 'c',
+    version : '0.1.0',
+    default_options : [
+        'c_std=gnu11'
+    ]
+)
 
-    # Create a new executable, list the files we want to compile, list the dependencies we need, and install
-    executable(
-        meson.project_name(),
-        'src/Application.vala',
-        dependencies: [
-            dependency('gtk+-3.0')
-        ],
-        install: true
-    )
+libkinesix_dep = dependency ('libkinesix', required : false)
+if not libkinesix_dep.found ()
+    libkinesix_proj = subproject ('libkinesix')
+    libkinesix_dep = libkinesix_proj.get_variable ('libkinesix_dep')
+endif
 
-    #Install our .desktop file so the Applications Menu will see it
-    install_data(
-        join_paths('data', meson.project_name() + '.desktop'),
-        install_dir: join_paths(get_option('datadir'), 'applications')
-    )
+executable (
+    meson.project_name (),
+    'src/Application.vala',
+    dependencies : [
+        libkinesix_dep,
+        dependency ('gtk+-3.0', method : 'pkg-config')
+    ],
+    install : true,
+)
 
-    #Install our .appdata.xml file so AppCenter will see it
-    install_data(
-        join_paths('data', meson.project_name() + '.appdata.xml'),
-        install_dir: join_paths(get_option('datadir'), 'metainfo')
-    )
+install_data(
+    join_paths ('data', meson.project_name () + '.desktop'),
+    install_dir : join_paths (get_option ('datadir'), 'applications')
+)
+
+install_data(
+    join_paths ('data', meson.project_name () + '.appdata.xml'),
+    install_dir : join_paths (get_option ('datadir'), 'metainfo')
+)

@@ -1,10 +1,10 @@
 [Desktop Entry]
-Name=Hello Again
-GenericName=Hello World App
-Comment=Proves that we can use Vala and Gtk
-Categories=Utility;Education;
-Exec=com.github.yourusername.yourrepositoryname
+Name=Kinesix
+GenericName=Touchpad Gestures
+Comment=None
+Categories=Utility;
+Exec=com.github.kicsyromy.kinesix
 Icon=application-default-icon
 Terminal=false
 Type=Application
-Keywords=Hello;World;Example;
+Keywords=Kinesix;Touchpad;Configuration;Tweaks

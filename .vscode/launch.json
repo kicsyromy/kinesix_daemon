@@ -8,7 +8,7 @@
             "name": "kinesix_daemon",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/kinesix_daemon",
+            "program": "${workspaceFolder}/build/com.github.kicsyromy.kinesix",
             "args": [],
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}",
