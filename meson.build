@@ -1,41 +1,24 @@
-project (
-    'kinesix_daemon', 'c',
-    version : '0.1.0',
-    default_options: [
-        'c_std=gnu11'
-    ],
-)
+ # project name and programming language
+    project('com.github.yourusername.yourrepositoryname', 'vala', 'c')
 
-kinesix_daemon_headers = [
-    'src/include/kinesixd_daemon.h',
-    'src/include/kinesixd_dbus_adaptor.h',
-    'src/include/kinesixd_device.h',
-    'src/include/kinesixd_device_marshaler.h',
-    'src/include/kinesixd_device_p.h',
-    'src/include/kinesixd_global.h'
-]
+    # Create a new executable, list the files we want to compile, list the dependencies we need, and install
+    executable(
+        meson.project_name(),
+        'src/Application.vala',
+        dependencies: [
+            dependency('gtk+-3.0')
+        ],
+        install: true
+    )
 
-kinesix_daemon_sources = [
-    'src/kinesixd_daemon.c',
-    'src/kinesixd_dbus_adaptor.c',
-    'src/kinesixd_device.c',
-    'src/kinesixd_device_marshaler.c',
-    'src/main.c'
-]
+    #Install our .desktop file so the Applications Menu will see it
+    install_data(
+        join_paths('data', meson.project_name() + '.desktop'),
+        install_dir: join_paths(get_option('datadir'), 'applications')
+    )
 
-executable = executable (
-    meson.project_name(),
-    sources: [
-        kinesix_daemon_sources,
-        kinesix_daemon_headers
-    ],
-    include_directories : include_directories(
-        'src/include'
-    ),
-    dependencies : [
-        dependency('libinput'),
-        dependency('libudev'),
-        dependency('dbus-1'),
-        dependency('threads')
-    ]
-)
+    #Install our .appdata.xml file so AppCenter will see it
+    install_data(
+        join_paths('data', meson.project_name() + '.appdata.xml'),
+        install_dir: join_paths(get_option('datadir'), 'metainfo')
+    )
