@@ -12,9 +12,15 @@ if not libkinesix_dep.found ()
     libkinesix_dep = libkinesix_proj.get_variable ('libkinesix_dep')
 endif
 
+sources = [
+    'src/Application.vala',
+    'src/BackendDevice.vala',
+    'src/BackendInterface.vala',
+]
+
 executable (
     meson.project_name (),
-    'src/Application.vala',
+    sources,
     dependencies : [
         libkinesix_dep,
         dependency ('gtk+-3.0', method : 'pkg-config')

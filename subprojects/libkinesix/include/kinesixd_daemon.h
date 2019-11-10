@@ -22,17 +22,23 @@
 
 #include <kinesixd_device.h>
 
-#define SWIPE_UP         0
-#define SWIPE_DOWN       1
-#define SWIPE_LEFT       2
-#define SWIPE_RIGHT      3
+enum SwipeDirection
+{
+    SWIPE_UP,
+    SWIPE_DOWN,
+    SWIPE_LEFT,
+    SWIPE_RIGHT
+};
 
-#define PINCH_IN         0
-#define PINCH_OUT        1
+enum PinchType
+{
+    PINCH_IN,
+    PINCH_OUT
+};
 
 #define UNKNOWN_GESTURE -1
 
-typedef struct _KinesixDaemon * KinesixDaemon;
+typedef struct _KinesixDaemon *KinesixDaemon;
 
 typedef void (*SwipedCallback)(int direction, int finger_count, void *user_data);
 typedef void (*PinchCallback)(int pinch_type, int finger_count, void *user_data);
@@ -43,9 +49,9 @@ struct KinesixDaemonCallbacks
     PinchCallback  pinch_cb;
 };
 
-KinesixDaemon kinesixd_daemon_new(const struct KinesixDaemonCallbacks callbacks, void *user_data);
+KinesixDaemon kinesixd_daemon_new(SwipedCallback swipe_cb, void *swipe_cb_target, PinchCallback pinch_cb, void *pinch_cb_target);
 void kinesixd_daemon_free(KinesixDaemon daemon);
-KinesixdDevice *kinesixd_daemon_get_valid_device_list(const KinesixDaemon Daemon);
+KinesixdDevice *kinesixd_daemon_get_valid_device_list(const KinesixDaemon daemon, int *out_length);
 void kinesixd_daemon_set_active_device(KinesixDaemon daemon, KinesixdDevice device);
 void kinesixd_daemon_start_polling(KinesixDaemon daemon);
 void kinesixd_daemon_stop_polling(KinesixDaemon daemon);

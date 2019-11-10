@@ -17,8 +17,20 @@ public class MyApp : Gtk.Application
         main_window.show_all ();
     }
 
+    private static void on_swiped(Backend.Interface.SwipeDirection direction, int finger_count)
+    {
+    }
+
+    private static void on_pinched(Backend.Interface.PinchType type, int finger_count)
+    {
+    }
+
     public static int main (string[] args)
     {
+        Backend.Interface i = new Backend.Interface(on_swiped, on_pinched);
+        var devices = i.get_available_devices();
+        stdout.printf("%s", devices[0].path);
+
         var app = new MyApp ();
         return app.run (args);
     }

@@ -115,13 +115,16 @@ static int kinesixd_daemon_priv_libinput_open_restricted(const char *path,
 static void kinesixd_daemon_priv_libinput_close_restricted(int fd,
                                                            void *user_data);
 
-KinesixDaemon kinesixd_daemon_new(const struct KinesixDaemonCallbacks callbacks, void *user_data)
+KinesixDaemon kinesixd_daemon_new(SwipedCallback swipe_cb, void *swipe_cb_target, PinchCallback pinch_cb, void *pinch_cb_target)
 {
+    if (swipe_cb_target != pinch_cb_target) LOG_FATAL("Pinch and Swipe callbacks should belong to the same class!!");
+
     KinesixDaemon self = (KinesixDaemon)malloc(sizeof(struct _KinesixDaemon));
     self->active_device = 0;
     self->valid_device_list = 0;
-    self->callbacks = callbacks;
-    self->user_data = user_data;
+    self->callbacks.swiped_cb = swipe_cb;
+    self->callbacks.pinch_cb = pinch_cb;
+    self->user_data = swipe_cb_target;
 
     self->gesture_type = UNKNOWN_GESTURE;
 
@@ -139,7 +142,8 @@ KinesixDaemon kinesixd_daemon_new(const struct KinesixDaemonCallbacks callbacks,
     /* TODO:                                                                                      */
     /* It might be usefull to set up inotify for /dev/input in order to detect new devices        */
     /* For now we stick to a static list initialized at the same time as the GestureDeamon itself */
-    self->valid_device_list = kinesixd_daemon_get_valid_device_list(self);
+    int device_count = 0;
+    self->valid_device_list = kinesixd_daemon_get_valid_device_list(self, &device_count);
 
     return self;
 }
@@ -157,9 +161,10 @@ void kinesixd_daemon_free(KinesixDaemon self)
     free(self);
 }
 
-KinesixdDevice *kinesixd_daemon_get_valid_device_list(const KinesixDaemon self)
+KinesixdDevice *kinesixd_daemon_get_valid_device_list(const KinesixDaemon self, int *length)
 {
     KinesixdDevice *device_list_heap = self->valid_device_list;
+    *length = 0;
 
     if (!self->valid_device_list)
     {
@@ -191,6 +196,7 @@ KinesixdDevice *kinesixd_daemon_get_valid_device_list(const KinesixDaemon self)
 
         device_list_heap = kinesixd_daemon_priv_device_list_duplicate(
                     device_list, device_count);
+        *length = device_count;
     }
 
     return device_list_heap;

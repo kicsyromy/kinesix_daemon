@@ -35,7 +35,8 @@ libkinesix = shared_library (
         dependency ('libudev'),
         dependency ('dbus-1'),
         dependency ('threads')
-    ]
+    ],
+    install : true
 )
 
 libkinesix_dep = declare_dependency (
